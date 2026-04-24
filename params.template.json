@@ -1,0 +1,12 @@
+{
+    "input": "pon_samplesheet.csv",
+    "outdir": "pon_results",
+    "fasta": "/path/to/references/genome/hg38.main_chroms.fa",
+    "fai": "/path/to/references/genome/hg38.main_chroms.fa.fai",
+    "dict": "/path/to/references/genome/hg38.main_chroms.dict",
+    "intervals": "/path/to/references/intervals/targets.interval_list",
+    "exclude_intervals": null,
+    "bin_length": 0,
+    "padding": 50,
+    "pon_name": "wes-do-gc"
+}
