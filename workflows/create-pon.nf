@@ -19,7 +19,8 @@ include { CREATEREADCOUNTPANELOFNORMALS      } from '../modules/local/createread
 workflow CREATE_PON {
 
     take:
-    ch_normals  // channel: [ meta, bam, bai ]
+    ch_normals          // channel: [ meta, bam, bai ]   -> run CollectReadCounts
+    ch_existing_counts  // channel: [ meta, hdf5 ]       -> pre-computed HDF5 from another pipeline
 
     main:
 
@@ -57,7 +58,7 @@ workflow CREATE_PON {
         ch_intervals,
         ch_exclude_intervals
     )
-    ch_versions = ch_versions.mix(GATK4_PREPROCESSINTERVALS.out.versions)
+    ch_versions = ch_versions.mix(GATK4_PREPROCESSINTERVALS.out.versions_gatk4)
 
     ch_preprocessed_intervals = GATK4_PREPROCESSINTERVALS.out.interval_list
         .map { meta, interval_list -> interval_list }
@@ -66,10 +67,7 @@ workflow CREATE_PON {
     // 2. COLLECT READ COUNTS (per normal)
     // =========================================
 
-    ch_normals_with_intervals = ch_normals
-        .map { meta, bam, bai ->
-            [ meta, bam, bai, ch_preprocessed_intervals ]
-        }
+    ch_normals_with_intervals = ch_normals.combine(ch_preprocessed_intervals)
 
     GATK4_COLLECTREADCOUNTS(
         ch_normals_with_intervals,
@@ -77,7 +75,7 @@ workflow CREATE_PON {
         ch_fai,
         ch_dict
     )
-    ch_versions = ch_versions.mix(GATK4_COLLECTREADCOUNTS.out.versions.first())
+    ch_versions = ch_versions.mix(GATK4_COLLECTREADCOUNTS.out.versions_gatk4.first())
 
     // =========================================
     // 3. CREATE PANEL OF NORMALS
@@ -86,6 +84,7 @@ workflow CREATE_PON {
     // =========================================
 
     ch_all_counts = GATK4_COLLECTREADCOUNTS.out.hdf5
+        .mix(ch_existing_counts)
         .map { meta, hdf5 -> hdf5 }
         .collect()
 
