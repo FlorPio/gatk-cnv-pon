@@ -15,6 +15,7 @@ include { GATK4_COLLECTREADCOUNTS            } from '../modules/nf-core/gatk4/co
 
 // Local modules
 include { CREATEREADCOUNTPANELOFNORMALS      } from '../modules/local/createreadcountpanelofnormals'
+include { WRITE_PON_MANIFEST                 } from '../modules/local/write_pon_manifest'
 
 workflow CREATE_PON {
 
@@ -93,7 +94,26 @@ workflow CREATE_PON {
     )
     ch_versions = ch_versions.mix(CREATEREADCOUNTPANELOFNORMALS.out.versions)
 
+    // =========================================
+    // 4. WRITE BUILD MANIFEST
+    //    Documents how this PON was built:
+    //    parameters, sample list, build notes.
+    // =========================================
+
+    ch_sample_entries = ch_normals
+        .map { meta, bam, bai -> "${meta.id} [bam]" }
+        .mix(
+            ch_existing_counts.map { meta, hdf5 -> "${meta.id} [precomputed counts]" }
+        )
+        .collect()
+
+    WRITE_PON_MANIFEST(
+        CREATEREADCOUNTPANELOFNORMALS.out.pon,
+        ch_sample_entries
+    )
+
     emit:
     pon      = CREATEREADCOUNTPANELOFNORMALS.out.pon
+    manifest = WRITE_PON_MANIFEST.out.manifest
     versions = ch_versions
 }
