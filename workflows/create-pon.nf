@@ -4,8 +4,10 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     Steps:
       1. PreprocessIntervals — prepare interval list with padding/binning
-      2. CollectReadCounts  — count reads per interval for each normal
-      3. CreateReadCountPanelOfNormals — merge all counts into a single PON
+      2. AnnotateIntervals  — (optional) annotate with %GC, mappability, segdup
+      3. CollectReadCounts  — count reads per interval for each normal
+      4. CreateReadCountPanelOfNormals — merge all counts into a single PON,
+         using annotated intervals if explicit GC correction is enabled
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
@@ -14,6 +16,7 @@ include { GATK4_PREPROCESSINTERVALS          } from '../modules/nf-core/gatk4/pr
 include { GATK4_COLLECTREADCOUNTS            } from '../modules/nf-core/gatk4/collectreadcounts/main'
 
 // Local modules
+include { ANNOTATEINTERVALS                  } from '../modules/local/annotateintervals'
 include { CREATEREADCOUNTPANELOFNORMALS      } from '../modules/local/createreadcountpanelofnormals'
 include { WRITE_PON_MANIFEST                 } from '../modules/local/write_pon_manifest'
 
@@ -61,11 +64,51 @@ workflow CREATE_PON {
     )
     ch_versions = ch_versions.mix(GATK4_PREPROCESSINTERVALS.out.versions_gatk4)
 
+    // Convert to value channel so the same interval_list can be reused by
+    // both ANNOTATEINTERVALS and the .combine() with CollectReadCounts.
     ch_preprocessed_intervals = GATK4_PREPROCESSINTERVALS.out.interval_list
         .map { meta, interval_list -> interval_list }
+        .first()
 
     // =========================================
-    // 2. COLLECT READ COUNTS (per normal)
+    // 2. ANNOTATE INTERVALS (optional)
+    //    Adds %GC (always, from FASTA), plus
+    //    mappability and segdup tracks if given.
+    //    Enables explicit GC correction in PON.
+    // =========================================
+
+    if (params.do_explicit_gc_correction) {
+
+        ch_mappability = params.mappability_track_bed
+            ? Channel.value([
+                file(params.mappability_track_bed,     checkIfExists: true),
+                file("${params.mappability_track_bed}.tbi", checkIfExists: true)
+            ])
+            : Channel.value([ [], [] ])
+
+        ch_segdup = params.segmental_duplication_track_bed
+            ? Channel.value([
+                file(params.segmental_duplication_track_bed,     checkIfExists: true),
+                file("${params.segmental_duplication_track_bed}.tbi", checkIfExists: true)
+            ])
+            : Channel.value([ [], [] ])
+
+        ANNOTATEINTERVALS(
+            ch_preprocessed_intervals,
+            ch_fasta,
+            ch_fai,
+            ch_dict,
+            ch_mappability,
+            ch_segdup
+        )
+        ch_versions = ch_versions.mix(ANNOTATEINTERVALS.out.versions)
+        ch_annotated_intervals = ANNOTATEINTERVALS.out.annotated
+    } else {
+        ch_annotated_intervals = Channel.value([])
+    }
+
+    // =========================================
+    // 3. COLLECT READ COUNTS (per normal)
     // =========================================
 
     ch_normals_with_intervals = ch_normals.combine(ch_preprocessed_intervals)
@@ -79,7 +122,7 @@ workflow CREATE_PON {
     ch_versions = ch_versions.mix(GATK4_COLLECTREADCOUNTS.out.versions_gatk4.first())
 
     // =========================================
-    // 3. CREATE PANEL OF NORMALS
+    // 4. CREATE PANEL OF NORMALS
     //    Collects all HDF5 counts and merges
     //    into a single PON file.
     // =========================================
@@ -90,7 +133,8 @@ workflow CREATE_PON {
         .collect()
 
     CREATEREADCOUNTPANELOFNORMALS(
-        ch_all_counts
+        ch_all_counts,
+        ch_annotated_intervals
     )
     ch_versions = ch_versions.mix(CREATEREADCOUNTPANELOFNORMALS.out.versions)
 
