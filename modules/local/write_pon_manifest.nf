@@ -32,14 +32,17 @@ process WRITE_PON_MANIFEST {
         #===============================================================================
 
         ## Build Parameters
-        - Reference FASTA:     ${params.fasta}
-        - Reference dict:      ${params.dict}
-        - Intervals:           ${params.intervals ?: '(WGS mode, no intervals)'}
-        - Exclude intervals:   ${params.exclude_intervals ?: '(none)'}
-        - Padding:             ${params.padding} bp
-        - Bin length:          ${params.bin_length}
-        - GATK container:      docker.io/broadinstitute/gatk:4.6.2.0
-        - Samples in PON:      ${n_samples}
+        - Reference FASTA:        ${params.fasta}
+        - Reference dict:         ${params.dict}
+        - Intervals:              ${params.intervals ?: '(WGS mode, no intervals)'}
+        - Exclude intervals:      ${params.exclude_intervals ?: '(none)'}
+        - Padding:                ${params.padding} bp
+        - Bin length:             ${params.bin_length}
+        - Explicit GC correction: ${params.do_explicit_gc_correction ?: false}
+        - Mappability track:      ${params.mappability_track_bed ?: '(none)'}
+        - Segdup track:           ${params.segmental_duplication_track_bed ?: '(none)'}
+        - GATK container:         docker.io/broadinstitute/gatk:4.6.2.0
+        - Samples in PON:         ${n_samples}
 
         ## CreateReadCountPanelOfNormals arguments
         ${pon_args}

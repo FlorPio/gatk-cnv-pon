@@ -6,7 +6,8 @@ process CREATEREADCOUNTPANELOFNORMALS {
     container "docker.io/broadinstitute/gatk:4.6.2.0"
 
     input:
-    path(counts)   // collected list of HDF5 files
+    path(counts)              // collected list of HDF5 files
+    path(annotated_intervals) // optional: TSV from AnnotateIntervals (pass [] to skip)
 
     output:
     path("*.pon.hdf5"), emit: pon
@@ -20,7 +21,8 @@ process CREATEREADCOUNTPANELOFNORMALS {
     def prefix = task.ext.prefix ?: params.pon_name ?: 'cnv_somatic'
 
     // Build --input arguments for each HDF5 file
-    def input_args = counts.collect { "--input ${it}" }.join(' \\\n        ')
+    def input_args     = counts.collect { "--input ${it}" }.join(' \\\n        ')
+    def annotated_arg  = annotated_intervals ? "--annotated-intervals ${annotated_intervals}" : ''
 
     def avail_mem = 3072
     if (!task.memory) {
@@ -32,6 +34,7 @@ process CREATEREADCOUNTPANELOFNORMALS {
     gatk --java-options "-Xmx${avail_mem}M -XX:-UsePerfData" \\
         CreateReadCountPanelOfNormals \\
         ${input_args} \\
+        ${annotated_arg} \\
         --output ${prefix}.pon.hdf5 \\
         ${args}
 
